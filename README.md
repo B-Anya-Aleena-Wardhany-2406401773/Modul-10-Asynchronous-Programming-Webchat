@@ -25,3 +25,10 @@ This repository is divided to branches that correspond to the blog post sections
 ### 3.1 Original Code
 
 ![01](images/01.png)
+
+### 3.2 Be Creative!
+![02](images/02.png)
+Saya melakukan beberapa perubahan kecil pada tampilan chat agar lebih nyaman dilihat tanpa mengubah struktur UI aslinya.
+
+- Tema warna diganti dari warna default.
+- Foto profil pengguna diganti menggunakan gambar baru.
