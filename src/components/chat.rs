@@ -44,8 +44,10 @@ pub struct Chat {
     chat_input: NodeRef,
     _producer: Box<dyn Bridge<EventBus>>,
     wss: WebsocketService,
+    username: String,
     messages: Vec<MessageData>,
 }
+
 impl Component for Chat {
     type Message = Msg;
     type Properties = ();
@@ -58,25 +60,18 @@ impl Component for Chat {
         let wss = WebsocketService::new();
         let username = user.username.borrow().clone();
 
-        let message = WebSocketMessage {
-            message_type: MsgTypes::Register,
-            data: Some(username.to_string()),
-            data_array: None,
-        };
-
-        if let Ok(_) = wss
-            .tx
-            .clone()
-            .try_send(serde_json::to_string(&message).unwrap())
-        {
-            log::debug!("message sent successfully");
-        }
-
         Self {
-            users: vec![],
+            users: vec![UserProfile {
+                name: username.clone(),
+                avatar: format!(
+                    "https://avatars.dicebear.com/api/adventurer-neutral/{}.svg",
+                    username
+                ),
+            }],
             messages: vec![],
             chat_input: NodeRef::default(),
             wss,
+            username,
             _producer: EventBus::bridge(ctx.link().callback(Msg::HandleMsg)),
         }
     }
@@ -84,52 +79,53 @@ impl Component for Chat {
     fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::HandleMsg(s) => {
-                let msg: WebSocketMessage = serde_json::from_str(&s).unwrap();
-                match msg.message_type {
-                    MsgTypes::Users => {
-                        let users_from_message = msg.data_array.unwrap_or_default();
-                        self.users = users_from_message
-                            .iter()
-                            .map(|u| UserProfile {
-                                name: u.into(),
-                                avatar: format!(
-                                    "https://avatars.dicebear.com/api/adventurer-neutral/{}.svg",
-                                    u
-                                )
-                                .into(),
-                            })
-                            .collect();
-                        return true;
-                    }
-                    MsgTypes::Message => {
-                        let message_data: MessageData =
-                            serde_json::from_str(&msg.data.unwrap()).unwrap();
-                        self.messages.push(message_data);
-                        return true;
-                    }
-                    _ => {
-                        return false;
+                if let Ok(msg) = serde_json::from_str::<WebSocketMessage>(&s) {
+                    match msg.message_type {
+                        MsgTypes::Users => {
+                            let users_from_message = msg.data_array.unwrap_or_default();
+                            self.users = users_from_message
+                                .iter()
+                                .map(|u| UserProfile {
+                                    name: u.into(),
+                                    avatar: format!(
+                                        "https://avatars.dicebear.com/api/adventurer-neutral/{}.svg",
+                                        u
+                                    ),
+                                })
+                                .collect();
+                            return true;
+                        }
+                        MsgTypes::Message => {
+                            let message_data: MessageData =
+                                serde_json::from_str(&msg.data.unwrap()).unwrap();
+                            self.messages.push(message_data);
+                            return true;
+                        }
+                        _ => {
+                            return false;
+                        }
                     }
                 }
+
+                false
             }
             Msg::SubmitMessage => {
                 let input = self.chat_input.cast::<HtmlInputElement>();
                 if let Some(input) = input {
-                    let message = WebSocketMessage {
-                        message_type: MsgTypes::Message,
-                        data: Some(input.value()),
-                        data_array: None,
-                    };
-                    if let Err(e) = self
-                        .wss
-                        .tx
-                        .clone()
-                        .try_send(serde_json::to_string(&message).unwrap())
-                    {
-                        log::debug!("error sending to channel: {:?}", e);
+                    let message_text = input.value();
+                    if !message_text.is_empty() {
+                        self.messages.push(MessageData {
+                            from: self.username.clone(),
+                            message: message_text.clone(),
+                        });
+
+                        if let Err(e) = self.wss.tx.clone().try_send(message_text) {
+                            log::debug!("error sending to channel: {:?}", e);
+                        }
+                        input.set_value("");
+                        return true;
                     }
-                    input.set_value("");
-                };
+                }
                 false
             }
         }

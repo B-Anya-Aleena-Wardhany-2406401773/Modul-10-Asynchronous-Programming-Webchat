@@ -7,7 +7,7 @@ const distPath = path.resolve(__dirname, 'dist');
 module.exports = {
     mode: 'production',
     devServer: {
-        port: 8000,
+        port: 3000,
     },
     entry: './bootstrap.js',
     output: {
